@@ -63,6 +63,19 @@
             Continuar con Google
           }
         </button>
+
+        <button
+          mat-raised-button
+          class="facebook-btn"
+          (click)="signInWithFacebook()"
+          [disabled]="loading()">
+          <mat-icon>f</mat-icon>
+          @if (loading()) {
+            Iniciando sesión...
+          } @else {
+            Continuar con Facebook
+          }
+        </button>
         
         <div class="register-link">
           <p>¿Eres nuevo? <a routerLink="/auth/sign-up" mat-button color="accent">Regístrate aquí</a></p>

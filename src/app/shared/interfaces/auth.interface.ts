@@ -20,6 +20,10 @@ export interface User {
   // Campos adicionales para operaciones CRUD
   id_persona?: number;
   id_empleado?: number;
+
+  // Campos de autenticación social
+  provider?: 'google' | 'facebook';
+  photoURL?: string;
 }
 
 export interface Employee extends User {

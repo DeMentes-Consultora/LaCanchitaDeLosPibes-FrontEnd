@@ -100,14 +100,27 @@ export class SignUpComponent {
    * Registrarse con Google
    */
   async signUpWithGoogle() {
+    await this.signUpWithProvider('google');
+  }
+
+  /**
+   * Registrarse con Facebook
+   */
+  async signUpWithFacebook() {
+    await this.signUpWithProvider('facebook');
+  }
+
+  private async signUpWithProvider(provider: 'google' | 'facebook') {
     this.googleLoading.set(true);
     this.error.set('');
 
     try {
-      const result = await this.firebaseAuth.signInWithGoogle();
+      const result = provider === 'google'
+        ? await this.firebaseAuth.signInWithGoogle()
+        : await this.firebaseAuth.signInWithFacebook();
       
       if (result.success) {
-        this.snackBar.open('¡Registro exitoso con Google!', 'Cerrar', {
+        this.snackBar.open(`¡Registro exitoso con ${provider === 'google' ? 'Google' : 'Facebook'}!`, 'Cerrar', {
           duration: 3000,
           panelClass: ['success-snackbar']
         });
@@ -118,8 +131,8 @@ export class SignUpComponent {
         this.error.set(result.message);
       }
     } catch (error) {
-      console.error('Error en registro con Google:', error);
-      this.error.set('Error al registrarse con Google. Intenta nuevamente.');
+      console.error('Error en registro social:', error);
+      this.error.set('Error al registrarse con red social. Intenta nuevamente.');
     } finally {
       this.googleLoading.set(false);
     }

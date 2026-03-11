@@ -1,9 +1,9 @@
 import { Injectable, inject, PLATFORM_ID } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
-import { Auth, signInWithPopup, GoogleAuthProvider, signOut, user, User } from '@angular/fire/auth';
-import { Observable, BehaviorSubject } from 'rxjs';
+import { Auth, signInWithPopup, GoogleAuthProvider, FacebookAuthProvider, signOut, user, User } from '@angular/fire/auth';
+import { BehaviorSubject } from 'rxjs';
 import { AuthService } from './auth.service';
-import { RegisterRequest, UserRole } from '../interfaces/auth.interface';
+import { UserRole } from '../interfaces/auth.interface';
 import { environment } from '../../../environments/environment';
 
 @Injectable({
@@ -26,51 +26,54 @@ export class FirebaseAuthService {
     this.user$.subscribe(firebaseUser => {
       if (firebaseUser) {
         // Usuario autenticado con Firebase, sincronizar con nuestro sistema
-        this.syncWithBackend(firebaseUser);
+        const providerId = firebaseUser.providerData?.[0]?.providerId;
+        const provider = providerId === 'facebook.com' ? 'facebook' : 'google';
+        this.syncWithBackend(firebaseUser, provider);
       }
     });
   }
 
   /**
-   * Iniciar sesión con Google
+   * Iniciar sesión/registro social con proveedor seleccionado
    */
-  async signInWithGoogle(): Promise<{success: boolean, message: string, user?: any}> {
+  async signInWithSocial(providerName: 'google' | 'facebook'): Promise<{success: boolean, message: string, user?: any}> {
     if (!isPlatformBrowser(this.platformId)) {
-      return { success: false, message: 'La autenticación con Google no está disponible en el servidor' };
+      return { success: false, message: 'La autenticación social no está disponible en el servidor' };
     }
 
     try {
       this.loadingSubject.next(true);
-      
-      const provider = new GoogleAuthProvider();
+
+      const provider = providerName === 'google'
+        ? new GoogleAuthProvider()
+        : new FacebookAuthProvider();
+
       provider.setCustomParameters({
         prompt: 'select_account'
       });
 
       const result = await signInWithPopup(this.auth, provider);
-      const user = result.user;
+      const firebaseUser = result.user;
 
-      if (user) {
-        // Sincronizar con el backend
-        const backendResult = await this.syncWithBackend(user);
-        
-        this.loadingSubject.next(false);
-        return {
-          success: true,
-          message: 'Inicio de sesión exitoso',
-          user: backendResult
-        };
-      } else {
+      if (!firebaseUser) {
         this.loadingSubject.next(false);
         return { success: false, message: 'No se pudo obtener información del usuario' };
       }
+
+      const backendResult = await this.syncWithBackend(firebaseUser, providerName);
+
+      this.loadingSubject.next(false);
+      return {
+        success: true,
+        message: 'Inicio de sesión exitoso',
+        user: backendResult
+      };
     } catch (error: any) {
       this.loadingSubject.next(false);
-      console.error('Error en login con Google:', error);
-      
-      // Manejar errores específicos de Firebase
+      console.error(`Error en login con ${providerName}:`, error);
+
       let errorMessage = 'Error desconocido';
-      
+
       if (error.code) {
         switch (error.code) {
           case 'auth/popup-closed-by-user':
@@ -85,13 +88,30 @@ export class FirebaseAuthService {
           case 'auth/network-request-failed':
             errorMessage = 'Error de red. Verifica tu conexión a internet';
             break;
+          case 'auth/account-exists-with-different-credential':
+            errorMessage = 'Este email ya está vinculado a otro proveedor de acceso';
+            break;
           default:
             errorMessage = `Error de autenticación: ${error.code}`;
         }
       }
-      
+
       return { success: false, message: errorMessage };
     }
+  }
+
+  /**
+   * Iniciar sesión con Google
+   */
+  async signInWithGoogle(): Promise<{success: boolean, message: string, user?: any}> {
+    return this.signInWithSocial('google');
+  }
+
+  /**
+   * Iniciar sesión/registro con Facebook
+   */
+  async signInWithFacebook(): Promise<{success: boolean, message: string, user?: any}> {
+    return this.signInWithSocial('facebook');
   }
 
   /**
@@ -110,7 +130,7 @@ export class FirebaseAuthService {
   /**
    * Sincronizar usuario de Firebase con nuestro backend
    */
-  private async syncWithBackend(firebaseUser: User): Promise<any> {
+  private async syncWithBackend(firebaseUser: User, provider: 'google' | 'facebook' = 'google'): Promise<any> {
     try {
       // Extraer datos del usuario de Firebase
       const userData = {
@@ -119,7 +139,8 @@ export class FirebaseAuthService {
         email: firebaseUser.email || '',
         telefono: firebaseUser.phoneNumber || '',
         photoURL: firebaseUser.photoURL || '',
-        firebaseUid: firebaseUser.uid
+        firebaseUid: firebaseUser.uid,
+        provider
       };
 
       console.log('🔄 Sincronizando con backend...', userData);
@@ -155,7 +176,7 @@ export class FirebaseAuthService {
           nombre: this.extractFirstName(firebaseUser.displayName || ''),
           apellido: this.extractLastName(firebaseUser.displayName || ''),
           photoURL: firebaseUser.photoURL || '',
-          provider: 'google',
+          provider,
           id_rol: 6, // Cliente por defecto
           rol: 'Cliente' as UserRole
         };
@@ -174,7 +195,7 @@ export class FirebaseAuthService {
         nombre: this.extractFirstName(firebaseUser.displayName || ''),
         apellido: this.extractLastName(firebaseUser.displayName || ''),
         photoURL: firebaseUser.photoURL || '',
-        provider: 'google',
+        provider,
         id_rol: 6, // Cliente por defecto
         rol: 'Cliente' as UserRole
       };

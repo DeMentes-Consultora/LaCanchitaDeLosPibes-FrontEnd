@@ -86,14 +86,27 @@ export class SignInComponent {
    * Iniciar sesión con Google
    */
   async signInWithGoogle() {
+    await this.signInWithProvider('google');
+  }
+
+  /**
+   * Iniciar sesión con Facebook
+   */
+  async signInWithFacebook() {
+    await this.signInWithProvider('facebook');
+  }
+
+  private async signInWithProvider(provider: 'google' | 'facebook') {
     try {
       this.loading.set(true);
       this.error.set('');
 
-      const result = await this.firebaseAuth.signInWithGoogle();
+      const result = provider === 'google'
+        ? await this.firebaseAuth.signInWithGoogle()
+        : await this.firebaseAuth.signInWithFacebook();
 
       if (result.success) {
-        this.snackBar.open('¡Bienvenido! Inicio de sesión exitoso', 'Cerrar', {
+        this.snackBar.open(`¡Bienvenido! Inicio de sesión exitoso con ${provider === 'google' ? 'Google' : 'Facebook'}`, 'Cerrar', {
           duration: 3000,
           panelClass: ['success-snackbar']
         });
@@ -108,7 +121,7 @@ export class SignInComponent {
         });
       }
     } catch (error) {
-      console.error('Error en Google Sign-In:', error);
+      console.error('Error en autenticación social:', error);
       this.error.set('Error inesperado al iniciar sesión');
       this.snackBar.open('Error inesperado al iniciar sesión', 'Cerrar', {
         duration: 5000,

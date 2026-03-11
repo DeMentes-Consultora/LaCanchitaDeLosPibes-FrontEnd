@@ -69,6 +69,20 @@
                 Registrarse con Google
               }
             </button>
+
+            <button
+              mat-raised-button
+              type="button"
+              class="facebook-btn"
+              (click)="signUpWithFacebook()"
+              [disabled]="googleLoading()">
+              <mat-icon>f</mat-icon>
+              @if (googleLoading()) {
+                Registrando...
+              } @else {
+                Registrarse con Facebook
+              }
+            </button>
           </div>
 
           @if (error()) {
