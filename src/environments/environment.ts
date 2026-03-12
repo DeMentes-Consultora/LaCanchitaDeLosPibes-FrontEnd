@@ -1,9 +1,9 @@
 export const environment = {
   production: false,
-  apiUrl: 'http://localhost:8000/src/Api',
+  apiUrl: '/api',
   
-  // URL para PHP embebido - ruta corregida
-  backendUrl: 'http://localhost:8000/src/Api',
+  // URL del backend en desarrollo mediante proxy de Angular
+  backendUrl: '/api',
   
   // Firebase Configuration (si usas Firebase)
   firebaseConfig: {
