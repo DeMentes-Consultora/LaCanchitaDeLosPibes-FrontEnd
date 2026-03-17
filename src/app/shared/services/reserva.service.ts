@@ -110,7 +110,7 @@ export class ReservaService {
         next: (reservas) => {
           this.reservasSubject.next(reservas);
         },
-        error: (error) => {
+        error: (_error: unknown) => {
           this.reservasSubject.next([]);
         }
       });

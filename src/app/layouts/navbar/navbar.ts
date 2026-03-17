@@ -59,13 +59,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
       }
     });
 
-    dialogRef.afterClosed().subscribe(result => {
-      console.log('🔐 Modal login cerrado con resultado:', result);
-      if (result && result.success) {
-        // Login exitoso - el AuthService ya maneja la actualización del estado
-        console.log('✅ Login exitoso desde modal');
-      }
-    });
+    dialogRef.afterClosed().subscribe();
   }
 
   openRegisterModal() {
@@ -78,7 +72,6 @@ export class NavbarComponent implements OnInit, OnDestroy {
     });
 
     dialogRef.afterClosed().subscribe(result => {
-      console.log('👤 Modal register cerrado con resultado:', result);
       if (result && result.success) {
         if (result.autoLogin) {
           // Si el auto-login fue exitoso, mostrar mensaje de bienvenida
@@ -100,11 +93,8 @@ export class NavbarComponent implements OnInit, OnDestroy {
 
   logout() {
     this.authService.logout().subscribe({
-      next: () => {
-        console.log('Sesión cerrada exitosamente');
-      },
-      error: (error) => {
-        console.error('Error al cerrar sesión:', error);
+      next: () => undefined,
+      error: () => {
         // Limpiar localmente aunque falle en el servidor
         this.authService.clearCurrentUser();
       }
@@ -130,5 +120,26 @@ export class NavbarComponent implements OnInit, OnDestroy {
       return 'Usuario';
     }
     return '';
+  }
+
+  getUserPhotoUrl(): string | null {
+    if (!this.currentUser) {
+      return null;
+    }
+
+    const user = this.currentUser as User & { foto_perfil_url?: string };
+    const photo = (user.photoURL || user.foto_perfil_url || '').trim();
+
+    return photo !== '' ? photo : null;
+  }
+
+  getAvatarText(): string {
+    const fullName = this.getUserDisplayName().trim();
+    if (fullName !== '' && fullName !== 'Usuario') {
+      return fullName.charAt(0).toUpperCase();
+    }
+
+    const email = (this.currentUser?.email || '').trim();
+    return email !== '' ? email.charAt(0).toUpperCase() : '?';
   }
 }

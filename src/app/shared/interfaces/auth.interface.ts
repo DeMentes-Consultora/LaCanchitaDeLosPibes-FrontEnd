@@ -24,6 +24,8 @@ export interface User {
   // Campos de autenticación social
   provider?: 'google' | 'facebook';
   photoURL?: string;
+  foto_perfil_url?: string;
+  foto_perfil_public_id?: string;
 }
 
 export interface Employee extends User {

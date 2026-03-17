@@ -1,6 +1,7 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject, PLATFORM_ID } from '@angular/core';
+import { isPlatformBrowser } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
-import { Observable, BehaviorSubject } from 'rxjs';
+import { Observable, BehaviorSubject, of } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { ConfigService } from './config.service';
 import { Cancha, CanchaAdmin, CanchaDisplay } from '../interfaces/cancha.interface';
@@ -9,6 +10,7 @@ import { Cancha, CanchaAdmin, CanchaDisplay } from '../interfaces/cancha.interfa
   providedIn: 'root'
 })
 export class CanchasService {
+  private platformId = inject(PLATFORM_ID);
   private canchasSubject = new BehaviorSubject<CanchaDisplay[]>([]);
   public canchas$ = this.canchasSubject.asObservable();
 
@@ -21,6 +23,11 @@ export class CanchasService {
    * Obtiene todas las canchas desde el backend
    */
   getCanchas(): Observable<CanchaDisplay[]> {
+    if (!isPlatformBrowser(this.platformId)) {
+      // En SSR evitamos requests a /api para no romper el render del build.
+      return of([]);
+    }
+
     return this.http.get<Cancha[]>(this.configService.getApiEndpoint('canchas')).pipe(
       map(response => {
         const canchasFormateadas = this.formatearCanchas(response || []);
@@ -192,6 +199,10 @@ export class CanchasService {
    * Obtiene todas las canchas para gestión administrativa (incluye deshabilitadas)
    */
   getCanchasAdmin(): Observable<CanchaAdmin[]> {
+    if (!isPlatformBrowser(this.platformId)) {
+      return of([]);
+    }
+
     return this.http.get<Cancha[]>(this.configService.getApiEndpoint('canchas')).pipe(
       map(response => {
         const canchas = response || [];

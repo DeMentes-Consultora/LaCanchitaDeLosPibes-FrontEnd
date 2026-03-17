@@ -8,19 +8,21 @@
     <!-- Botones cuando NO está logueado -->
     @if (!isAuthenticated) {
       <button mat-button (click)="openLoginModal()" type="button">
-        <mat-icon>login</mat-icon>
-        Sign In
-      </button>
-      <button mat-button (click)="openRegisterModal()" type="button">
-        <mat-icon>person_add</mat-icon>
-        Sign Up
+        <mat-icon>account_circle</mat-icon>
+        Ingresar
       </button>
     }
     
     <!-- Información del usuario cuando está logueado -->
     @if (isAuthenticated && currentUser) {
       <span class="user-info">
-        <mat-icon>person</mat-icon>
+        <span class="avatar" aria-hidden="true">
+          @if (getUserPhotoUrl()) {
+            <img [src]="getUserPhotoUrl()!" [alt]="'Foto de ' + getUserDisplayName()" loading="lazy" />
+          } @else {
+            <span>{{ getAvatarText() }}</span>
+          }
+        </span>
         {{ getUserDisplayName() }}
       </span>
       <button mat-button (click)="logout()" type="button" class="logout-btn">

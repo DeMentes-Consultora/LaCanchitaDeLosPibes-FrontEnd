@@ -1,16 +1,23 @@
-import { Injectable, inject, PLATFORM_ID } from '@angular/core';
+import { Injectable, inject, Injector, PLATFORM_ID, runInInjectionContext } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 import { Auth, signInWithPopup, GoogleAuthProvider, FacebookAuthProvider, signOut, user, User } from '@angular/fire/auth';
+import { UserCredential } from 'firebase/auth';
 import { BehaviorSubject } from 'rxjs';
 import { AuthService } from './auth.service';
-import { UserRole } from '../interfaces/auth.interface';
 import { environment } from '../../../environments/environment';
+
+type SocialAuthResult = {
+  success: boolean;
+  message: string;
+  user?: any;
+};
 
 @Injectable({
   providedIn: 'root'
 })
 export class FirebaseAuthService {
   private auth: Auth = inject(Auth);
+  private injector = inject(Injector);
   private platformId = inject(PLATFORM_ID);
   private authService = inject(AuthService);
   
@@ -21,14 +28,36 @@ export class FirebaseAuthService {
   private loadingSubject = new BehaviorSubject<boolean>(false);
   public loading$ = this.loadingSubject.asObservable();
 
+  private logDebug(message: string, payload?: unknown): void {
+    if (!environment.debug) {
+      return;
+    }
+
+    if (payload !== undefined) {
+      console.log(message, payload);
+      return;
+    }
+
+    console.log(message);
+  }
+
   constructor() {
     // Escuchar cambios de autenticación de Firebase
     this.user$.subscribe(firebaseUser => {
-      if (firebaseUser) {
-        // Usuario autenticado con Firebase, sincronizar con nuestro sistema
-        const providerId = firebaseUser.providerData?.[0]?.providerId;
-        const provider = providerId === 'facebook.com' ? 'facebook' : 'google';
-        this.syncWithBackend(firebaseUser, provider);
+      if (!firebaseUser) {
+        return;
+      }
+
+      const currentUser = this.authService.getCurrentUser();
+      if (currentUser?.email === (firebaseUser.email || '')) {
+        return;
+      }
+
+      // Solo intentamos sincronización automática para Facebook.
+      // Google requiere id_token OAuth y ese token se envía desde signInWithSocial.
+      const providerId = firebaseUser.providerData?.[0]?.providerId;
+      if (providerId === 'facebook.com') {
+        void this.syncWithBackend(firebaseUser, 'facebook');
       }
     });
   }
@@ -36,7 +65,7 @@ export class FirebaseAuthService {
   /**
    * Iniciar sesión/registro social con proveedor seleccionado
    */
-  async signInWithSocial(providerName: 'google' | 'facebook'): Promise<{success: boolean, message: string, user?: any}> {
+  async signInWithSocial(providerName: 'google' | 'facebook'): Promise<SocialAuthResult> {
     if (!isPlatformBrowser(this.platformId)) {
       return { success: false, message: 'La autenticación social no está disponible en el servidor' };
     }
@@ -52,7 +81,7 @@ export class FirebaseAuthService {
         prompt: 'select_account'
       });
 
-      const result = await signInWithPopup(this.auth, provider);
+      const result = await runInInjectionContext(this.injector, () => signInWithPopup(this.auth, provider));
       const firebaseUser = result.user;
 
       if (!firebaseUser) {
@@ -60,17 +89,30 @@ export class FirebaseAuthService {
         return { success: false, message: 'No se pudo obtener información del usuario' };
       }
 
-      const backendResult = await this.syncWithBackend(firebaseUser, providerName);
+      const googleIdToken = providerName === 'google'
+        ? GoogleAuthProvider.credentialFromResult(result as UserCredential)?.idToken ?? ''
+        : '';
+
+      const backendResult = await this.syncWithBackend(firebaseUser, providerName, googleIdToken);
+
+      if (!backendResult.success) {
+        await runInInjectionContext(this.injector, () => signOut(this.auth));
+        this.authService.clearCurrentUser();
+        this.loadingSubject.next(false);
+        return backendResult;
+      }
 
       this.loadingSubject.next(false);
       return {
         success: true,
-        message: 'Inicio de sesión exitoso',
-        user: backendResult
+        message: backendResult.message || 'Inicio de sesión exitoso',
+        user: backendResult.user
       };
     } catch (error: any) {
       this.loadingSubject.next(false);
-      console.error(`Error en login con ${providerName}:`, error);
+      if (environment.debug) {
+        console.error(`Error en login con ${providerName}:`, error);
+      }
 
       let errorMessage = 'Error desconocido';
 
@@ -119,7 +161,7 @@ export class FirebaseAuthService {
    */
   async signOut(): Promise<void> {
     try {
-      await signOut(this.auth);
+      await runInInjectionContext(this.injector, () => signOut(this.auth));
       // También cerrar sesión en nuestro sistema
       this.authService.clearCurrentUser();
     } catch (error) {
@@ -130,7 +172,11 @@ export class FirebaseAuthService {
   /**
    * Sincronizar usuario de Firebase con nuestro backend
    */
-  private async syncWithBackend(firebaseUser: User, provider: 'google' | 'facebook' = 'google'): Promise<any> {
+  private async syncWithBackend(
+    firebaseUser: User,
+    provider: 'google' | 'facebook' = 'google',
+    googleIdToken = ''
+  ): Promise<SocialAuthResult> {
     try {
       // Extraer datos del usuario de Firebase
       const userData = {
@@ -140,11 +186,12 @@ export class FirebaseAuthService {
         telefono: firebaseUser.phoneNumber || '',
         photoURL: firebaseUser.photoURL || '',
         firebaseUid: firebaseUser.uid,
-        provider
+        provider,
+        id_token: googleIdToken
       };
 
-      console.log('🔄 Sincronizando con backend...', userData);
-      console.log('🌐 URL Backend:', `${environment.backendUrl}/google-auth.php`);
+      this.logDebug('Sincronizando con backend...', userData);
+      this.logDebug('URL Backend: ' + `${environment.backendUrl}/google-auth.php`);
 
       // Usar el endpoint específico para autenticación con Google
       const response = await fetch(`${environment.backendUrl}/google-auth.php`, {
@@ -156,53 +203,37 @@ export class FirebaseAuthService {
         body: JSON.stringify(userData)
       });
 
-      console.log('📡 Respuesta del servidor:', response.status, response.statusText);
+      this.logDebug(`Respuesta del servidor: ${response.status} ${response.statusText}`);
 
       const result = await response.json();
-      
-      console.log('✅ Resultado del backend:', result);
+
+      this.logDebug('Resultado del backend:', result);
       
       if (result.success && result.user) {
         // Actualizar el estado de autenticación en nuestro servicio
         this.authService.setUserFromFirebase(result.user);
-        return result.user;
-      } else {
-        console.error('❌ Error del servidor:', result.message);
-        // Aunque falle la sincronización con el backend, 
-        // crear un usuario temporal y establecerlo en el sistema
-        const fallbackUser = {
-          id_usuario: 0,
-          email: firebaseUser.email || 'no-email@firebase.com',
-          nombre: this.extractFirstName(firebaseUser.displayName || ''),
-          apellido: this.extractLastName(firebaseUser.displayName || ''),
-          photoURL: firebaseUser.photoURL || '',
-          provider,
-          id_rol: 6, // Cliente por defecto
-          rol: 'Cliente' as UserRole
+        return {
+          success: true,
+          message: result.message || 'Inicio de sesión exitoso',
+          user: result.user
         };
-        
-        // IMPORTANTE: Establecer el usuario en el AuthService aunque falle el backend
-        this.authService.setUserFromFirebase(fallbackUser);
-        return fallbackUser;
       }
-    } catch (error) {
-      console.error('💥 Error sincronizando con backend:', error);
-      // Aunque falle la sincronización con el backend, 
-      // crear un usuario temporal y establecerlo en el sistema
-      const fallbackUser = {
-        id_usuario: 0,
-        email: firebaseUser.email || 'no-email@firebase.com',
-        nombre: this.extractFirstName(firebaseUser.displayName || ''),
-        apellido: this.extractLastName(firebaseUser.displayName || ''),
-        photoURL: firebaseUser.photoURL || '',
-        provider,
-        id_rol: 6, // Cliente por defecto
-        rol: 'Cliente' as UserRole
+
+      if (environment.debug) {
+        console.error('Error del servidor:', result.message);
+      }
+      return {
+        success: false,
+        message: result.message || 'No se pudo guardar el usuario en la base de datos'
       };
-      
-      // IMPORTANTE: Establecer el usuario en el AuthService aunque falle la conexión
-      this.authService.setUserFromFirebase(fallbackUser);
-      return fallbackUser;
+    } catch (error) {
+      if (environment.debug) {
+        console.error('Error sincronizando con backend:', error);
+      }
+      return {
+        success: false,
+        message: 'No se pudo sincronizar el usuario con el backend'
+      };
     }
   }
 

@@ -247,6 +247,18 @@ export class UsuariosModalComponent implements OnInit {
    * Manejar envío del formulario
    */
   async onFormSubmit(formData: any) {
+    // Flujo social (Google/Facebook) ya autenticado en frontend/backend.
+    if (formData?.success === true && formData?.provider) {
+      this.dialogRef.close({
+        action: 'submit',
+        data: formData,
+        mode: this.currentMode,
+        success: true,
+        refresh: false
+      });
+      return;
+    }
+
     this.loading = true;
 
     try {

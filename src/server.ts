@@ -41,7 +41,7 @@ app.use(
 app.use((req, res, next) => {
   angularApp
     .handle(req)
-    .then((response) =>
+    .then((response: Response | null) =>
       response ? writeResponseToNodeResponse(response, res) : next(),
     )
     .catch(next);
@@ -53,7 +53,7 @@ app.use((req, res, next) => {
  */
 if (isMainModule(import.meta.url)) {
   const port = process.env['PORT'] || 4000;
-  app.listen(port, (error) => {
+  app.listen(port, (error?: Error) => {
     if (error) {
       throw error;
     }
