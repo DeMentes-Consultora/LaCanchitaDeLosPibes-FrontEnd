@@ -65,24 +65,33 @@ import { CanchaHorarioService, CanchaDB, HorarioDB } from '../../shared/services
                         </div>
                       </div>
                     </div>
+                    @if (!mostrarSelectorCancha && canchasDisponibles.length > 1) {
+                      <div class="cancha-actions">
+                        <button mat-button type="button" (click)="cambiarCancha()">
+                          Cambiar cancha
+                        </button>
+                      </div>
+                    }
                   </div>
                 }
 
-                <mat-form-field appearance="outline" class="full-width">
-                  <mat-label>Cancha</mat-label>
-                  <mat-select formControlName="canchaId" (selectionChange)="onCanchaChange($event.value)">
-                    @for (cancha of canchasDisponibles; track cancha.id) {
-                      <mat-option [value]="cancha.id">
-                        {{ cancha.nombre }} - {{ cancha.tipo }} (\${{ cancha.precio }}/hora)
-                      </mat-option>
+                @if (!canchaSeleccionada || mostrarSelectorCancha) {
+                  <mat-form-field appearance="outline" class="full-width">
+                    <mat-label>Cancha</mat-label>
+                    <mat-select formControlName="canchaId" (selectionChange)="onCanchaChange($event.value)">
+                      @for (cancha of canchasDisponibles; track cancha.id) {
+                        <mat-option [value]="cancha.id">
+                          {{ cancha.nombre }} - {{ cancha.tipo }} (\${{ cancha.precio }}/hora)
+                        </mat-option>
+                      }
+                    </mat-select>
+                    @if (canchaForm.get('canchaId')?.hasError('required')) {
+                      <mat-error>
+                        Por favor selecciona una cancha
+                      </mat-error>
                     }
-                  </mat-select>
-                  @if (canchaForm.get('canchaId')?.hasError('required')) {
-                    <mat-error>
-                      Por favor selecciona una cancha
-                    </mat-error>
-                  }
-                </mat-form-field>
+                  </mat-form-field>
+                }
 
                 <div class="step-actions">
                   <button mat-raised-button color="primary" matStepperNext [disabled]="!canchaForm.valid">
@@ -365,6 +374,12 @@ import { CanchaHorarioService, CanchaDB, HorarioDB } from '../../shared/services
       color: #2e7d32;
     }
 
+    .cancha-actions {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 12px;
+    }
+
     .horarios-grid {
       margin: 24px 0;
     }
@@ -438,6 +453,7 @@ export class NuevaReservaComponent implements OnInit {
   clienteForm!: FormGroup;
 
   canchaSeleccionada: any = null;
+  mostrarSelectorCancha = false;
   fechaMinima = new Date();
   procesandoReserva = false;
 
@@ -484,6 +500,11 @@ export class NuevaReservaComponent implements OnInit {
           precio: cancha.precio,
           imagen: 'assets/images/cancha-default.svg'
         }));
+        // Si ya hay un canchaId en el form (vino de queryParams antes de que cargaran las canchas), aplicar la selección ahora
+        const canchaId = this.canchaForm.get('canchaId')?.value;
+        if (canchaId) {
+          this.onCanchaChange(Number(canchaId));
+        }
       },
       error: (error: any) => {
         console.error('Error al cargar canchas:', error);
@@ -530,7 +551,11 @@ export class NuevaReservaComponent implements OnInit {
       if (params['canchaId']) {
         const canchaId = parseInt(params['canchaId']);
         this.canchaForm.patchValue({ canchaId });
-        this.onCanchaChange(canchaId);
+        // Si las canchas ya cargaron, aplicar la selección inmediatamente
+        // Si no, loadCanchas() lo hará al completar la carga
+        if (this.canchasDisponibles.length > 0) {
+          this.onCanchaChange(canchaId);
+        }
       }
     });
   }
@@ -548,6 +573,14 @@ export class NuevaReservaComponent implements OnInit {
 
   onCanchaChange(canchaId: number) {
     this.canchaSeleccionada = this.canchasDisponibles.find(c => c.id === canchaId);
+
+    if (this.canchaSeleccionada) {
+      this.mostrarSelectorCancha = false;
+    }
+  }
+
+  cambiarCancha() {
+    this.mostrarSelectorCancha = true;
   }
 
   seleccionarHorario(hora: string) {

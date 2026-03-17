@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
+import { ConfigService } from './config.service';
 
 export interface CanchaDB {
   id_cancha: number;
@@ -22,20 +23,20 @@ export interface HorarioDB {
 })
 export class CanchaHorarioService {
   private http = inject(HttpClient);
-  private readonly baseUrl = 'http://localhost/Mis_Proyectos/LaCanchitaDeLosPibes/BackEnd-Canchita/src/Api';
+  private configService = inject(ConfigService);
 
   /**
    * Obtener todas las canchas disponibles
    */
   getCanchas(): Observable<CanchaDB[]> {
-    return this.http.get<CanchaDB[]>(`${this.baseUrl}/canchas.php`);
+    return this.http.get<CanchaDB[]>(this.configService.getApiEndpoint('canchas'));
   }
 
   /**
    * Obtener todos los horarios disponibles
    */
   getHorarios(): Observable<HorarioDB[]> {
-    return this.http.get<HorarioDB[]>(`${this.baseUrl}/horarios.php`);
+    return this.http.get<HorarioDB[]>(this.configService.getApiEndpoint('horarios'));
   }
 
   /**
