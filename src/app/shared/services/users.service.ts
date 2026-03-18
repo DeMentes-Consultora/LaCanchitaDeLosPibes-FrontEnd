@@ -3,6 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { Observable, of, tap } from 'rxjs';
 import { User } from '../interfaces';
 import { isPlatformBrowser } from '@angular/common';
+import { environment } from '../../../environments/environment';
 
 export interface UserResponse {
   success: boolean;
@@ -17,7 +18,7 @@ export interface UserResponse {
 export class UsersService {
   private http = inject(HttpClient);
   private platformId = inject(PLATFORM_ID);
-  private apiUrl = 'http://localhost:8000/src/Api';
+  private apiUrl = environment.apiUrl;
   
   // Cache en memoria usando signals
   private usersCache = signal<User[]>([]);
