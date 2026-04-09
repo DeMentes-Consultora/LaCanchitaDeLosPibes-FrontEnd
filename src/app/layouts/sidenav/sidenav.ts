@@ -69,16 +69,7 @@ export class SidenavComponent implements OnInit, OnDestroy {
   }
 
   logout() {
-    this.authService.logout().subscribe({
-      next: () => {
-        console.log('Sesión cerrada exitosamente');
-      },
-      error: (error) => {
-        console.error('Error al cerrar sesión:', error);
-        // Limpiar localmente aunque falle en el servidor
-        this.authService.clearCurrentUser();
-      }
-    });
+    this.authService.logoutAndRedirect();
   }
 
   closeSidenavPanel() {

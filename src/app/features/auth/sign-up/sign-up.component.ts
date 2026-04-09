@@ -127,6 +127,13 @@ export class SignUpComponent {
         
         // Redirigir al dashboard o home
         this.router.navigate(['/home']);
+      } else if ((result as any).requiresRegistration) {
+        this.snackBar.open(result.message, 'Cerrar', {
+          duration: 5000,
+          panelClass: ['success-snackbar']
+        });
+
+        this.openRegisterModal();
       } else {
         this.error.set(result.message);
       }

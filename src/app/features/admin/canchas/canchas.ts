@@ -42,7 +42,7 @@ export class CanchasComponent implements OnInit {
   private snackBar = inject(MatSnackBar);
 
   // Encabezados de la tabla (deben coincidir con las claves de CanchaAdmin)
-  headers = ['nombre', 'tipo', 'precio', 'estado'];
+  headers = ['foto', 'nombre', 'tipo', 'precio', 'estado'];
 
   // Datos de canchas cargados desde el backend
   canchas: CanchaAdmin[] = [];
@@ -69,6 +69,7 @@ export class CanchasComponent implements OnInit {
       // Actualizar solo los campos que han cambiado
       this.canchas[index] = {
         ...this.canchas[index],
+        foto: this.canchas[index].foto,
         nombre: datosActualizados.nombre || canchaOriginal.nombre,
         tipo: datosActualizados.tipo || canchaOriginal.tipo,
         descripcion: datosActualizados.descripcion || canchaOriginal.descripcion,

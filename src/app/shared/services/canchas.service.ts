@@ -49,7 +49,7 @@ export class CanchasService {
         tipo: this.obtenerTipoCancha(cancha.nombreCancha),
         descripcion: this.obtenerDescripcion(cancha.nombreCancha),
         precio: cancha.precio,
-        imagen: this.obtenerImagen(cancha.nombreCancha),
+        imagen: cancha.foto_cancha_url || cancha.imagen || this.obtenerImagen(cancha.nombreCancha),
         caracteristicas: this.obtenerCaracteristicas(cancha.nombreCancha)
       }));
   }
@@ -208,11 +208,14 @@ export class CanchasService {
         const canchas = response || [];
         return canchas.map(cancha => ({
           idCancha: cancha.id_cancha,
+          foto: cancha.foto_cancha_url || cancha.imagen || this.obtenerImagen(cancha.nombreCancha),
           nombre: cancha.nombreCancha,
           precio: cancha.precio,
           estado: this.mapearEstado(cancha.habilitado, cancha.cancelado),
           tipo: this.obtenerTipoCancha(cancha.nombreCancha),
           descripcion: this.obtenerDescripcion(cancha.nombreCancha),
+          foto_cancha_url: cancha.foto_cancha_url ?? null,
+          foto_cancha_public_id: cancha.foto_cancha_public_id ?? null,
           // Campos adicionales para el backend
           id_cancha: cancha.id_cancha,
           nombreCancha: cancha.nombreCancha,
@@ -236,14 +239,22 @@ export class CanchasService {
    * Crea una nueva cancha
    */
   createCancha(canchaData: any): Observable<any> {
-    return this.http.post(this.configService.getApiEndpoint('canchas'), canchaData);
+    return this.http.post(this.configService.getApiEndpoint('canchas'), this.toCanchaPayload(canchaData));
   }
 
   /**
    * Actualiza una cancha existente
    */
   updateCancha(canchaData: any): Observable<any> {
-    return this.http.put(this.configService.getApiEndpoint('canchas'), canchaData);
+    const endpoint = this.configService.getApiEndpoint('canchas');
+    const payload = this.toCanchaPayload(canchaData);
+
+    if (payload instanceof FormData && payload.has('foto_cancha')) {
+      payload.append('_method', 'PUT');
+      return this.http.post(endpoint, payload);
+    }
+
+    return this.http.put(endpoint, payload);
   }
 
   /**
@@ -261,5 +272,29 @@ export class CanchasService {
       id_cancha: idCancha,
       habilitado: habilitado ? 1 : 0
     });
+  }
+
+  private toCanchaPayload(canchaData: any): FormData | any {
+    const imageFile = canchaData?.foto_cancha_file as File | null | undefined;
+
+    if (!imageFile) {
+      const data = { ...canchaData };
+      delete data.foto_cancha_file;
+      return data;
+    }
+
+    const formData = new FormData();
+    Object.entries(canchaData || {}).forEach(([key, value]) => {
+      if (key === 'foto_cancha_file') {
+        return;
+      }
+
+      if (value !== undefined && value !== null) {
+        formData.append(key, String(value));
+      }
+    });
+
+    formData.append('foto_cancha', imageFile);
+    return formData;
   }
 }

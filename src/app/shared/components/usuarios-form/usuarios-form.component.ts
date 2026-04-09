@@ -39,6 +39,7 @@ export class UsuariosFormComponent implements OnInit, OnChanges {
   hidePassword = true;
   googleLoading = false;
   form: any;
+  isCompletingGoogleRegistration = false;
 
   private firebaseAuth = inject(FirebaseAuthService);
   private snackBar = inject(MatSnackBar);
@@ -83,12 +84,41 @@ export class UsuariosFormComponent implements OnInit, OnChanges {
     if (this.usuario) {
       this.form.patchValue(this.usuario);
     }
+
+    this.applyPendingGooglePrefillIfNeeded();
   }
 
   ngOnChanges(changes: SimpleChanges) {
     if (changes['tipo'] && !changes['tipo'].firstChange) {
       this.setupFormValidations();
+      this.applyPendingGooglePrefillIfNeeded();
     }
+  }
+
+  private applyPendingGooglePrefillIfNeeded(): void {
+    if (this.tipo !== 'sign-up') {
+      this.isCompletingGoogleRegistration = false;
+      return;
+    }
+
+    const prefill = this.firebaseAuth.getPendingGoogleRegistrationPrefill();
+    this.isCompletingGoogleRegistration = !!prefill;
+
+    if (!prefill) {
+      return;
+    }
+
+    const prefilledData = {
+      nombre: prefill.nombre || '',
+      apellido: prefill.apellido || '',
+      email: prefill.email || '',
+      telefono: prefill.telefono || '',
+      edad: prefill.edad || '',
+      dni: prefill.dni || '',
+      rol: 6
+    };
+
+    this.form.patchValue(prefilledData);
   }
 
   /**
@@ -169,13 +199,18 @@ export class UsuariosFormComponent implements OnInit, OnChanges {
       const isReadOnly = this.isReadOnlyMode();
       
       // Validaciones para contraseña
-      const passwordValidators = isReadOnly ? [] : 
-        (this.tipo === 'editar' ? [Validators.minLength(6)] : [Validators.required, Validators.minLength(6)]);
+      const passwordValidators = isReadOnly
+        ? []
+        : (this.tipo === 'editar'
+          ? [Validators.minLength(6)]
+          : (this.tipo === 'sign-up' && this.firebaseAuth.hasPendingGoogleRegistration())
+            ? []
+            : [Validators.required, Validators.minLength(6)]);
       
       // Validaciones generales (solo si no es modo de solo lectura)
       const requiredValidator = isReadOnly ? [] : [Validators.required];
       const emailValidators = isReadOnly ? [] : [Validators.required, Validators.email];
-      const dniValidators = isReadOnly ? [] : [Validators.required, Validators.pattern(/^\d{7,8}$/)];
+      const dniValidators = isReadOnly ? [] : [Validators.pattern(/^$|^\d{7,8}$/)];
       const edadValidators = isReadOnly ? [] : [Validators.required, Validators.min(16), Validators.max(99)];
       const telefonoValidators = isReadOnly ? [] : [Validators.required, Validators.pattern(/^\d{10,11}$/)];
       
@@ -203,6 +238,11 @@ export class UsuariosFormComponent implements OnInit, OnChanges {
 
     if (this.form.valid) {
       const formData = this.form.value;
+
+      if (this.tipo === 'sign-up' && this.firebaseAuth.hasPendingGoogleRegistration()) {
+        void this.completePendingGoogleRegistration(formData);
+        return;
+      }
       
       // Filtrar datos según el tipo de formulario
       if (this.tipo === 'contacto') {
@@ -231,7 +271,63 @@ export class UsuariosFormComponent implements OnInit, OnChanges {
     }
   }
 
+  private async completePendingGoogleRegistration(formData: any): Promise<void> {
+    this.googleLoading = true;
+
+    try {
+      const result = await this.firebaseAuth.completePendingGoogleRegistration({
+        nombre: formData.nombre,
+        apellido: formData.apellido,
+        edad: formData.edad,
+        telefono: formData.telefono,
+        dni: formData.dni
+      });
+
+      if (result.success) {
+        this.snackBar.open(result.message, 'Cerrar', {
+          duration: 5000,
+          panelClass: ['success-snackbar']
+        });
+
+        this.formSubmit.emit({
+          success: true,
+          user: result.user,
+          message: result.message,
+          provider: 'google',
+          autoLogin: true
+        });
+      } else {
+        if (result.prefillData) {
+          this.form.patchValue({
+            nombre: result.prefillData.nombre || formData.nombre,
+            apellido: result.prefillData.apellido || formData.apellido,
+            email: result.prefillData.email || formData.email,
+            telefono: result.prefillData.telefono || formData.telefono,
+            edad: result.prefillData.edad || formData.edad,
+            dni: result.prefillData.dni || formData.dni,
+          });
+        }
+
+        this.snackBar.open(result.message, 'Cerrar', {
+          duration: 5000,
+          panelClass: ['error-snackbar']
+        });
+      }
+    } catch (error) {
+      console.error('Error completando registro pendiente de Google:', error);
+      this.snackBar.open('No se pudo completar el registro con Google.', 'Cerrar', {
+        duration: 5000,
+        panelClass: ['error-snackbar']
+      });
+    } finally {
+      this.googleLoading = false;
+    }
+  }
+
   onCancel() {
+    if (this.firebaseAuth.hasPendingGoogleRegistration()) {
+      this.firebaseAuth.clearPendingGoogleRegistration();
+    }
     this.formCancel.emit();
   }
 
@@ -276,6 +372,9 @@ export class UsuariosFormComponent implements OnInit, OnChanges {
   }
 
   switchToLogin() {
+    if (this.firebaseAuth.hasPendingGoogleRegistration()) {
+      this.firebaseAuth.clearPendingGoogleRegistration();
+    }
     this.modeChange.emit('login');
   }
 
@@ -310,6 +409,24 @@ export class UsuariosFormComponent implements OnInit, OnChanges {
           autoLogin: true // Importante para que el modal sepa que se logueó automáticamente
         });
         
+      } else if (result.requiresRegistration) {
+        this.snackBar.open(result.message, 'Cerrar', {
+          duration: 5000,
+          panelClass: ['success-snackbar']
+        });
+
+        if (this.tipo !== 'sign-up') {
+          this.modeChange.emit('register');
+        } else if (result.prefillData) {
+          this.form.patchValue({
+            nombre: result.prefillData.nombre || '',
+            apellido: result.prefillData.apellido || '',
+            email: result.prefillData.email || '',
+            telefono: result.prefillData.telefono || '',
+            edad: result.prefillData.edad || '',
+            dni: result.prefillData.dni || '',
+          });
+        }
       } else {
         // Mostrar error
         this.snackBar.open(result.message, 'Cerrar', {

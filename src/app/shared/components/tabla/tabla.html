@@ -4,7 +4,7 @@
     <tr>
       <!-- Encabezados dinámicos -->
       @for (header of headers; track header) {
-        <th>{{ header }}</th>
+        <th>{{ getHeaderLabel(header) }}</th>
       }
       <!-- Columna de acciones si hay acciones definidas -->
       @if (actions.length > 0) {
@@ -17,7 +17,21 @@
     @for (row of data; track row) {
       <tr>
         @for (header of headers; track header) {
-          <td>{{ row[header] }}</td>
+          <td>
+            @if (isImageHeader(header)) {
+              @if (row[header]) {
+                <img
+                  [src]="row[header]"
+                  [alt]="'Imagen de ' + (row['nombre'] || row['nombreCancha'] || 'cancha')"
+                  class="tabla-miniatura"
+                  (error)="onImageError($event)">
+              } @else {
+                <span class="tabla-sin-imagen">Sin imagen</span>
+              }
+            } @else {
+              {{ row[header] }}
+            }
+          </td>
         }
         @if (actions.length > 0) {
           <td class="acciones">

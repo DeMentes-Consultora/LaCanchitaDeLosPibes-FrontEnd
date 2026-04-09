@@ -10,6 +10,18 @@ type SocialAuthResult = {
   success: boolean;
   message: string;
   user?: any;
+  requiresRegistration?: boolean;
+  prefillData?: any;
+  missingFields?: string[];
+};
+
+type PendingGoogleRegistration = {
+  provider: 'google' | 'facebook';
+  firebaseUid: string;
+  idToken: string;
+  photoURL: string;
+  email: string;
+  prefillData: any;
 };
 
 @Injectable({
@@ -27,6 +39,7 @@ export class FirebaseAuthService {
   // Estado interno
   private loadingSubject = new BehaviorSubject<boolean>(false);
   public loading$ = this.loadingSubject.asObservable();
+  private pendingGoogleRegistration: PendingGoogleRegistration | null = null;
 
   private logDebug(message: string, payload?: unknown): void {
     if (!environment.debug) {
@@ -95,6 +108,22 @@ export class FirebaseAuthService {
 
       const backendResult = await this.syncWithBackend(firebaseUser, providerName, googleIdToken);
 
+      if (backendResult.requiresRegistration) {
+        this.pendingGoogleRegistration = {
+          provider: providerName,
+          firebaseUid: firebaseUser.uid,
+          idToken: googleIdToken,
+          photoURL: firebaseUser.photoURL || '',
+          email: firebaseUser.email || '',
+          prefillData: backendResult.prefillData || {}
+        };
+
+        await runInInjectionContext(this.injector, () => signOut(this.auth));
+        this.authService.clearCurrentUser();
+        this.loadingSubject.next(false);
+        return backendResult;
+      }
+
       if (!backendResult.success) {
         await runInInjectionContext(this.injector, () => signOut(this.auth));
         this.authService.clearCurrentUser();
@@ -145,14 +174,14 @@ export class FirebaseAuthService {
   /**
    * Iniciar sesión con Google
    */
-  async signInWithGoogle(): Promise<{success: boolean, message: string, user?: any}> {
+  async signInWithGoogle(): Promise<SocialAuthResult> {
     return this.signInWithSocial('google');
   }
 
   /**
    * Iniciar sesión/registro con Facebook
    */
-  async signInWithFacebook(): Promise<{success: boolean, message: string, user?: any}> {
+  async signInWithFacebook(): Promise<SocialAuthResult> {
     return this.signInWithSocial('facebook');
   }
 
@@ -163,7 +192,7 @@ export class FirebaseAuthService {
     try {
       await runInInjectionContext(this.injector, () => signOut(this.auth));
       // También cerrar sesión en nuestro sistema
-      this.authService.clearCurrentUser();
+      this.authService.endSessionAndRedirect();
     } catch (error) {
       console.error('Error al cerrar sesión:', error);
     }
@@ -187,7 +216,8 @@ export class FirebaseAuthService {
         photoURL: firebaseUser.photoURL || '',
         firebaseUid: firebaseUser.uid,
         provider,
-        id_token: googleIdToken
+        id_token: googleIdToken,
+        mode: 'login'
       };
 
       this.logDebug('Sincronizando con backend...', userData);
@@ -212,10 +242,21 @@ export class FirebaseAuthService {
       if (result.success && result.user) {
         // Actualizar el estado de autenticación en nuestro servicio
         this.authService.setUserFromFirebase(result.user);
+        this.pendingGoogleRegistration = null;
         return {
           success: true,
           message: result.message || 'Inicio de sesión exitoso',
           user: result.user
+        };
+      }
+
+      if (result.requires_registration) {
+        return {
+          success: false,
+          requiresRegistration: true,
+          message: result.message || 'Debes completar el registro para continuar con Google',
+          prefillData: result.prefill || userData,
+          missingFields: Array.isArray(result.missing_fields) ? result.missing_fields : []
         };
       }
 
@@ -233,6 +274,89 @@ export class FirebaseAuthService {
       return {
         success: false,
         message: 'No se pudo sincronizar el usuario con el backend'
+      };
+    }
+  }
+
+  hasPendingGoogleRegistration(): boolean {
+    return this.pendingGoogleRegistration !== null;
+  }
+
+  getPendingGoogleRegistrationPrefill(): any | null {
+    return this.pendingGoogleRegistration?.prefillData || null;
+  }
+
+  clearPendingGoogleRegistration(): void {
+    this.pendingGoogleRegistration = null;
+  }
+
+  async completePendingGoogleRegistration(formData: {
+    nombre: string;
+    apellido: string;
+    edad: string | number;
+    telefono: string;
+    dni?: string;
+  }): Promise<SocialAuthResult> {
+    if (!this.pendingGoogleRegistration) {
+      return {
+        success: false,
+        message: 'No hay un registro de Google pendiente para completar.'
+      };
+    }
+
+    const pending = this.pendingGoogleRegistration;
+    const payload = {
+      mode: 'register',
+      provider: pending.provider,
+      firebaseUid: pending.firebaseUid,
+      id_token: pending.idToken,
+      photoURL: pending.photoURL,
+      email: pending.email || pending.prefillData?.email || '',
+      nombre: formData.nombre,
+      apellido: formData.apellido,
+      edad: String(formData.edad ?? '').trim(),
+      telefono: String(formData.telefono ?? '').trim(),
+      dni: String(formData.dni ?? '').trim(),
+    };
+
+    try {
+      const response = await fetch(`${environment.backendUrl}/google-auth.php`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include',
+        body: JSON.stringify(payload)
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        if (result.user) {
+          this.authService.setUserFromFirebase(result.user);
+        }
+        this.pendingGoogleRegistration = null;
+        return {
+          success: true,
+          message: result.message || 'Registro completado con Google.',
+          user: result.user
+        };
+      }
+
+      return {
+        success: false,
+        message: result.message || 'No se pudo completar el registro con Google',
+        requiresRegistration: !!result.requires_registration,
+        prefillData: result.prefill || payload,
+        missingFields: Array.isArray(result.missing_fields) ? result.missing_fields : []
+      };
+    } catch (error) {
+      if (environment.debug) {
+        console.error('Error completando registro pendiente con Google:', error);
+      }
+      return {
+        success: false,
+        message: 'No se pudo completar el registro con Google'
       };
     }
   }

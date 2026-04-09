@@ -36,6 +36,8 @@ export class CanchasFormComponent implements OnInit, OnChanges {
 
   form: FormGroup;
   hidePassword = true;
+  selectedImageFile: File | null = null;
+  imagePreviewUrl: string | null = null;
 
   // Opciones para el tipo de cancha
   tiposCancha = [
@@ -73,12 +75,17 @@ export class CanchasFormComponent implements OnInit, OnChanges {
         precio: this.cancha.precio,
         habilitado: this.cancha.estado === 'Habilitada' ? 1 : 0
       });
+      this.imagePreviewUrl = this.cancha.foto_cancha_url || null;
     }
   }
 
   ngOnChanges(changes: SimpleChanges) {
     if (changes['mode'] && !changes['mode'].firstChange) {
       this.setupFormValidations();
+    }
+
+    if (changes['cancha'] && this.cancha) {
+      this.imagePreviewUrl = this.cancha.foto_cancha_url || null;
     }
   }
 
@@ -127,6 +134,9 @@ export class CanchasFormComponent implements OnInit, OnChanges {
     if (this.form.valid) {
       const formData = {
         ...this.form.value,
+        foto_cancha_file: this.selectedImageFile,
+        foto_cancha_url: this.cancha?.foto_cancha_url || null,
+        foto_cancha_public_id: this.cancha?.foto_cancha_public_id || null,
         // Agregar campos adicionales si estamos editando
         ...(this.mode === 'edit' && this.cancha ? {
           id_cancha: this.cancha.idCancha,
@@ -135,6 +145,34 @@ export class CanchasFormComponent implements OnInit, OnChanges {
       };
       this.formSubmit.emit(formData);
     }
+  }
+
+  onImageSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files && input.files.length > 0 ? input.files[0] : null;
+
+    if (!file) {
+      return;
+    }
+
+    if (!file.type.startsWith('image/')) {
+      input.value = '';
+      return;
+    }
+
+    this.selectedImageFile = file;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      this.imagePreviewUrl = typeof reader.result === 'string' ? reader.result : null;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  clearSelectedImage(fileInput: HTMLInputElement): void {
+    this.selectedImageFile = null;
+    this.imagePreviewUrl = this.cancha?.foto_cancha_url || null;
+    fileInput.value = '';
   }
 
   onCancel() {

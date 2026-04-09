@@ -1,7 +1,8 @@
 import { Injectable, PLATFORM_ID, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { isPlatformBrowser } from '@angular/common';
-import { BehaviorSubject, Observable, tap } from 'rxjs';
+import { Router } from '@angular/router';
+import { BehaviorSubject, Observable, catchError, tap, throwError } from 'rxjs';
 import { 
   User, 
   LoginRequest, 
@@ -28,7 +29,8 @@ export class AuthService {
 
   constructor(
     private http: HttpClient,
-    private configService: ConfigService
+    private configService: ConfigService,
+    private router: Router
   ) {
     // Verificar si hay usuario guardado en localStorage (solo en el navegador)
     this.checkStoredUser();
@@ -84,9 +86,25 @@ export class AuthService {
     return this.http.post(this.configService.getApiEndpoint('cerrarSesion'), {})
       .pipe(
         tap(() => {
-          this.clearCurrentUser();
+          this.endSessionAndRedirect();
+        }),
+        catchError((error) => {
+          // Incluso si falla el backend, cerramos sesión local y redirigimos.
+          this.endSessionAndRedirect();
+          return throwError(() => error);
         })
       );
+  }
+
+  /**
+   * Wrapper de conveniencia para componentes: ejecuta logout y absorbe errores
+   * porque la limpieza y redirección ya se resuelven dentro de logout().
+   */
+  logoutAndRedirect(): void {
+    this.logout().subscribe({
+      next: () => undefined,
+      error: () => undefined
+    });
   }
 
   /**
@@ -148,6 +166,14 @@ export class AuthService {
     this.removeItem('currentUser');
     this.currentUserSubject.next(null);
     this.isAuthenticatedSubject.next(false);
+  }
+
+  /**
+   * Punto centralizado para finalizar sesión y redirigir al home.
+   */
+  endSessionAndRedirect(redirectTo: string = '/home'): void {
+    this.clearCurrentUser();
+    this.router.navigate([redirectTo]);
   }
 
   /**

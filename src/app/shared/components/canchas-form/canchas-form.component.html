@@ -72,6 +72,43 @@
       <mat-icon matSuffix>description</mat-icon>
     </mat-form-field>
 
+    <!-- Imagen de cancha -->
+    <div class="image-upload-section">
+      <label class="image-upload-label">Imagen de la cancha</label>
+
+      @if (!isReadOnlyMode()) {
+        <div class="image-upload-controls">
+          <input
+            #fileInput
+            type="file"
+            accept="image/*"
+            (change)="onImageSelected($event)"
+            [disabled]="loading"
+          >
+
+          @if (selectedImageFile || imagePreviewUrl) {
+            <button
+              mat-stroked-button
+              color="warn"
+              type="button"
+              (click)="clearSelectedImage(fileInput)"
+              [disabled]="loading">
+              <mat-icon>delete</mat-icon>
+              Quitar imagen
+            </button>
+          }
+        </div>
+      }
+
+      @if (imagePreviewUrl) {
+        <div class="image-preview-container">
+          <img [src]="imagePreviewUrl" alt="Vista previa de cancha" class="image-preview">
+        </div>
+      } @else {
+        <p class="image-helper-text">No hay imagen seleccionada.</p>
+      }
+    </div>
+
     <!-- Información para modo de solo lectura -->
     @if (isReadOnlyMode()) {
       <div class="readonly-info">

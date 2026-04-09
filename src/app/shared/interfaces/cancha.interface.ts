@@ -4,6 +4,8 @@ export interface Cancha {
   precio: number;
   habilitado: number;
   cancelado: number;
+  foto_cancha_url?: string | null;
+  foto_cancha_public_id?: string | null;
   tipo?: string;
   descripcion?: string;
   imagen?: string;
@@ -11,11 +13,14 @@ export interface Cancha {
 
 export interface CanchaAdmin {
   idCancha: number;
+  foto?: string | null;
   nombre: string;
   precio: number;
   estado: 'Habilitada' | 'Deshabilitada' | 'Cancelada';
   tipo: string;
   descripcion: string;
+  foto_cancha_url?: string | null;
+  foto_cancha_public_id?: string | null;
   // Campos adicionales para el backend
   id_cancha?: number;
   nombreCancha?: string;

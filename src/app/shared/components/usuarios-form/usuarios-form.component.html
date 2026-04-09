@@ -64,8 +64,16 @@
         }
       </mat-form-field>
 
+      @if (isCompletingGoogleRegistration) {
+        <div class="role-info">
+          <mat-icon>info</mat-icon>
+          <span>Completa los datos obligatorios faltantes para terminar tu registro con Google.</span>
+        </div>
+      }
+
       <!-- Contraseña (oculta en modo de solo lectura) -->
       @if (!isReadOnlyMode()) {
+        @if (!isCompletingGoogleRegistration) {
         <mat-form-field appearance="outline" class="full-width">
           <mat-label>Contraseña</mat-label>
           <input matInput [type]="hidePassword ? 'password' : 'text'" formControlName="clave" placeholder="Contraseña">
@@ -79,6 +87,7 @@
             <mat-error>La contraseña debe tener al menos 6 caracteres</mat-error>
           }
         </mat-form-field>
+        }
 
         <!-- Mensaje informativo para edición -->
         @if (tipo === 'editar') {
@@ -92,14 +101,11 @@
       <!-- Campos adicionales para registro y edición -->
       <div class="form-row">
         <mat-form-field appearance="outline" class="half-width">
-          <mat-label>DNI</mat-label>
+          <mat-label>DNI (opcional)</mat-label>
           <input matInput formControlName="dni" placeholder="12345678" maxlength="8" [readonly]="isReadOnlyMode()">
           <mat-icon matSuffix>badge</mat-icon>
-          @if (form.get('dni')?.hasError('required')) {
-            <mat-error>El DNI es requerido</mat-error>
-          }
           @if (form.get('dni')?.hasError('pattern')) {
-            <mat-error>DNI debe tener 7 u 8 dígitos</mat-error>
+            <mat-error>Si lo completas, debe tener 7 u 8 dígitos</mat-error>
           }
         </mat-form-field>
 

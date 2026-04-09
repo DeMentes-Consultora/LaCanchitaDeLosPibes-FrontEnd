@@ -92,13 +92,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
   }
 
   logout() {
-    this.authService.logout().subscribe({
-      next: () => undefined,
-      error: () => {
-        // Limpiar localmente aunque falle en el servidor
-        this.authService.clearCurrentUser();
-      }
-    });
+    this.authService.logoutAndRedirect();
   }
 
   getUserDisplayName(): string {

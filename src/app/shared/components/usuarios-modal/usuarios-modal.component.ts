@@ -320,11 +320,21 @@ export class UsuariosModalComponent implements OnInit {
     return new Promise((resolve) => {
       this.authService.register(formData).subscribe({
         next: (response) => {
+          if (response.success && (response as any).pendiente_aprobacion) {
+            resolve({
+              success: true,
+              message: response.message || 'Registro exitoso. Tu cuenta quedó pendiente de aprobación.',
+              autoLogin: false,
+              pendiente_aprobacion: true
+            });
+            return;
+          }
+
           if (response.success) {
             // Auto-login después del registro exitoso
             const loginData = {
               email: formData.email,
-              clave: formData.password
+              clave: formData.clave
             };
             
             this.authService.login(loginData).subscribe({

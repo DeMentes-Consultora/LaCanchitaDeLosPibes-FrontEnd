@@ -113,6 +113,20 @@ export class SignInComponent {
 
         // Redirigir al dashboard o página principal
         this.router.navigate(['/dashboard']);
+      } else if ((result as any).requiresRegistration) {
+        this.snackBar.open(result.message, 'Cerrar', {
+          duration: 5000,
+          panelClass: ['success-snackbar']
+        });
+
+        this.dialog.open(UsuariosModalComponent, {
+          width: '500px',
+          disableClose: false,
+          data: {
+            mode: 'register',
+            title: 'Completar Registro con Google'
+          }
+        });
       } else {
         this.error.set(result.message);
         this.snackBar.open(result.message, 'Cerrar', {

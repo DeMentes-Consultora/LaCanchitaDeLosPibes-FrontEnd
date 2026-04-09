@@ -31,4 +31,28 @@ export class TablaComponent {
    * Ejemplo: [{ icon: 'edit', tooltip: 'Editar', callback: (row) => ... }]
    */
   @Input() actions: { icon: string, tooltip: string, callback: (row: any) => void, color?: string }[] = [];
+
+  /**
+   * Claves de columna que deben renderizarse como miniatura de imagen.
+   */
+  @Input() imageHeaders: string[] = ['foto', 'imagen', 'preview', 'foto_cancha_url'];
+
+  isImageHeader(header: string): boolean {
+    return this.imageHeaders.includes(header);
+  }
+
+  getHeaderLabel(header: string): string {
+    return header
+      .replace(/_/g, ' ')
+      .replace(/\b\w/g, (char) => char.toUpperCase());
+  }
+
+  onImageError(event: Event): void {
+    const target = event.target as HTMLImageElement;
+    if (target.src.includes('cancha-default.svg')) {
+      return;
+    }
+
+    target.src = 'assets/images/cancha-default.svg';
+  }
 }
